@@ -227,7 +227,7 @@ resource "aws_route53_record" "api_custom_domain" {
 resource "aws_api_gateway_base_path_mapping" "api_custom_domain" {
   api_id      = aws_api_gateway_rest_api.contact.id
   domain_name = format("api.%s", var.domain_name)
-  stage_name  = "philomusica"
+  stage_name  = "tdjjoinery"
 }
 
 resource "aws_api_gateway_domain_name" "api_custom_domain" {
