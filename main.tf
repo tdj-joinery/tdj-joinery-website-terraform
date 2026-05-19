@@ -13,11 +13,18 @@ provider "aws" {
 }
 
 terraform {
-	backend "s3" {
+  required_version = ">=1.14.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">=6.25.0"
+    }
+  }
+  backend "s3" {
 		bucket = "tdj-joinery-terraform-state"
 		key = "tdj-joinery.tfstate"
 		region = "eu-west-1"
-	}
+  }
 }
 
 resource "aws_s3_bucket" "tdj_joinery_website" {
@@ -281,9 +288,9 @@ resource "aws_api_gateway_method_response" "options_200" {
   }
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true,
-    "method.response.header.Access-Control-Allow-Methods" = true,
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Headers" = false,
+    "method.response.header.Access-Control-Allow-Methods" = false,
+    "method.response.header.Access-Control-Allow-Origin" = false
   }
   depends_on = [aws_api_gateway_method.contact_options]
 }
@@ -294,6 +301,13 @@ resource "aws_api_gateway_integration" "options_integration" {
     http_method   = aws_api_gateway_method.contact_options.http_method
     type          = "MOCK"
     depends_on = [aws_api_gateway_method.contact_options]
+    request_templates = {
+        "application/json" = jsonencode(
+            {
+                "statusCode": 200
+            }
+        )
+    }
 }
 
 resource "aws_api_gateway_integration_response" "options_integration_response" {
@@ -304,11 +318,8 @@ resource "aws_api_gateway_integration_response" "options_integration_response" {
     response_parameters = {
         "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
         "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'",
-        "method.response.header.Access-Control-Allow-Origin" = "'*'"
+        "method.response.header.Access-Control-Allow-Origin" = "'https://${var.domain_name}'"
     }
-	response_templates = {
-	  "application/json" = ""
-	}
     depends_on = [aws_api_gateway_method_response.options_200]
 }
 
@@ -328,7 +339,7 @@ resource "aws_api_gateway_method_response" "cors_method_response_200" {
 	  "application/json" = "Empty"
 	}
 	response_parameters = {
-	  "method.response.header.Access-Control-Allow-Origin" = true
+	  "method.response.header.Access-Control-Allow-Origin" = false
 	}
     depends_on = [aws_api_gateway_method.contact]
 }
@@ -355,6 +366,12 @@ resource "aws_api_gateway_stage" "contact" {
 }
 
 # Lambda
+
+resource "aws_cloudwatch_log_group" "contact" {
+    name              = "/aws/lambda/${aws_lambda_function.contact.function_name}"
+    retention_in_days = 14
+}   
+
 resource "aws_lambda_permission" "apigw_lambda" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
@@ -369,10 +386,10 @@ resource "aws_lambda_function" "contact" {
   function_name = "tdj-joinery-contact-form"
   role          = aws_iam_role.contact.arn
   handler       = "index.handler"
-  runtime       = "nodejs14.x"
+  runtime       = "nodejs24.x"
   environment {
 	variables = {
-		RECEIVER = "tim.jeffree@gmail.com"
+		RECEIVER = "joshuacrunden@gmail.com"
 		SENDER = "enquiry@tdj-joinery.co.uk"
 		RECAPTCHA_SECRET = "changeme"
 
@@ -411,6 +428,16 @@ data "aws_iam_policy_document" "contact_lambda_policy_doc" {
     ]
 
     resources = ["*"]
+  }
+  statement {
+    sid = "2"
+    actions = [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",                                                                                                                                                                                                     
+        "logs:PutLogEvents",
+    ]
+    resources = ["${aws_cloudwatch_log_group.contact.arn}:*"]
+    effect   = "Allow"
   }
 }
 
