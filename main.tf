@@ -288,9 +288,9 @@ resource "aws_api_gateway_method_response" "options_200" {
   }
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true,
-    "method.response.header.Access-Control-Allow-Methods" = true,
-    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Headers" = false,
+    "method.response.header.Access-Control-Allow-Methods" = false,
+    "method.response.header.Access-Control-Allow-Origin" = false
   }
   depends_on = [aws_api_gateway_method.contact_options]
 }
@@ -301,6 +301,13 @@ resource "aws_api_gateway_integration" "options_integration" {
     http_method   = aws_api_gateway_method.contact_options.http_method
     type          = "MOCK"
     depends_on = [aws_api_gateway_method.contact_options]
+    request_templates = {
+        "application/json" = jsonencode(
+            {
+                "statusCode": 200
+            }
+        )
+    }
 }
 
 resource "aws_api_gateway_integration_response" "options_integration_response" {
@@ -379,7 +386,7 @@ resource "aws_lambda_function" "contact" {
   function_name = "tdj-joinery-contact-form"
   role          = aws_iam_role.contact.arn
   handler       = "index.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs24.x"
   environment {
 	variables = {
 		RECEIVER = "joshuacrunden@gmail.com"
